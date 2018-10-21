@@ -1,0 +1,6 @@
+package: github.com/silsuer/bingo-router
+import:
+- package: github.com/julienschmidt/httprouter
+  version: v1.2.0
+- package: github.com/valyala/fasthttp
+  version: v20180529

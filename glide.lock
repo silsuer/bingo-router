@@ -1,0 +1,21 @@
+hash: 53a0114a8b0cae061522c9032c4490eca7f4b8a7b959577a5cd908f1fa26ee37
+updated: 2018-10-20T12:02:03.15959+08:00
+imports:
+- name: github.com/julienschmidt/httprouter
+  version: 348b672cd90d8190f8240323e372ecd1e66b59dc
+- name: github.com/klauspost/compress
+  version: b50017755d442260d792c34c7c43216d9ba7ffc7
+  subpackages:
+  - flate
+  - gzip
+  - zlib
+- name: github.com/klauspost/cpuid
+  version: e7e905edc00ea8827e58662220139109efea09db
+- name: github.com/valyala/bytebufferpool
+  version: cdfbe9377474227bb42120c1e22fd4433e7f69bf
+- name: github.com/valyala/fasthttp
+  version: e5f51c11919d4f66400334047b897ef0a94c6f3c
+  subpackages:
+  - fasthttputil
+  - stackless
+testImports: []
