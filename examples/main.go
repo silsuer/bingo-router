@@ -1,10 +1,9 @@
 package main
 
 import (
-	"github.com/julienschmidt/httprouter"
+	"github.com/silsuer/bingo-router"
 	"net/http"
 	"fmt"
-	"github.com/silsuer/bingo-router"
 )
 
 // 定义
@@ -14,14 +13,16 @@ func main() {
 	// 创建一个路由
 	// 给路由配置选项
 	// 配置连接池
-
 	//r := httprouter.New()
+	//r := bingo_router.New()
 	r := bingo_router.New()
-	r.GET("/", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+
+	r.GET("/", func(writer http.ResponseWriter, request *http.Request, params bingo_router.Params) {
 		fmt.Fprint(writer, "hello111")
 	})
+
 	http.ListenAndServe(":8080", r)
 
-	//fasthttp.ListenAndServe(":8080",)
+	//fasthttp.ListenAndServe(":8080", r)
 	//fasthttp.Serve(":8080",)
 }
