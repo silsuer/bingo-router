@@ -78,7 +78,6 @@ package bingo_router
 
 import (
 	"net/http"
-	"github.com/valyala/fasthttp"
 	"fmt"
 )
 
@@ -146,7 +145,7 @@ type Router struct {
 
 	// Configurable http.Handler which is called when no matching route is
 	// found. If it is not set, http.NotFound is used.
-	NotFound http.Handler
+	NotFound http.HandlerFunc
 
 	// Configurable http.Handler which is called when a request
 	// cannot be routed and HandleMethodNotAllowed is true.
@@ -178,38 +177,38 @@ func New() *Router {
 }
 
 // GET is a shortcut for router.Handle("GET", path, handle)
-func (r *Router) GET(path string, handle Handle) {
-	r.Handle("GET", path, handle)
+func (r *Router) GET(path string, route *Route) {
+	r.Handle("GET", path, route)
 }
 
 // HEAD is a shortcut for router.Handle("HEAD", path, handle)
-func (r *Router) HEAD(path string, handle Handle) {
-	r.Handle("HEAD", path, handle)
+func (r *Router) HEAD(path string, route *Route) {
+	r.Handle("HEAD", path, route)
 }
 
 // OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
-func (r *Router) OPTIONS(path string, handle Handle) {
-	r.Handle("OPTIONS", path, handle)
+func (r *Router) OPTIONS(path string, route *Route) {
+	r.Handle("OPTIONS", path, route)
 }
 
 // POST is a shortcut for router.Handle("POST", path, handle)
-func (r *Router) POST(path string, handle Handle) {
-	r.Handle("POST", path, handle)
+func (r *Router) POST(path string, route *Route) {
+	r.Handle("POST", path, route)
 }
 
 // PUT is a shortcut for router.Handle("PUT", path, handle)
-func (r *Router) PUT(path string, handle Handle) {
-	r.Handle("PUT", path, handle)
+func (r *Router) PUT(path string, route *Route) {
+	r.Handle("PUT", path, route)
 }
 
 // PATCH is a shortcut for router.Handle("PATCH", path, handle)
-func (r *Router) PATCH(path string, handle Handle) {
-	r.Handle("PATCH", path, handle)
+func (r *Router) PATCH(path string, route *Route) {
+	r.Handle("PATCH", path, route)
 }
 
 // DELETE is a shortcut for router.Handle("DELETE", path, handle)
-func (r *Router) DELETE(path string, handle Handle) {
-	r.Handle("DELETE", path, handle)
+func (r *Router) DELETE(path string, route *Route) {
+	r.Handle("DELETE", path, route)
 }
 
 // Handle registers a new request handle with the given path and method.
@@ -220,7 +219,7 @@ func (r *Router) DELETE(path string, handle Handle) {
 // This function is intended for bulk loading and to allow the usage of less
 // frequently used, non-standardized or custom methods (e.g. for internal
 // communication with a proxy).
-func (r *Router) Handle(method, path string, handle Handle) {
+func (r *Router) Handle(method, path string, route *Route) {
 	if path[0] != '/' {
 		panic("path must begin with '/' in path '" + path + "'")
 	}
@@ -235,13 +234,21 @@ func (r *Router) Handle(method, path string, handle Handle) {
 		r.trees[method] = root
 	}
 
-	root.addRoute(path, handle)
+	root.addRoute(path, route)
 }
 
 // HandlerFunc is an adapter which allows the usage of an http.HandlerFunc as a
 // request handle.
 func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 	r.Handler(method, path, handler)
+}
+
+func (r *Router) Handler(method, path string, handler http.Handler) {
+	route := &Route{}
+	route.targetMethod = func(context *Context) {
+		handler.ServeHTTP(context.Writer, context.Request)
+	}
+	r.Handle(method, path, route)
 }
 
 // ServeFiles serves files from the given file system root.
@@ -260,11 +267,12 @@ func (r *Router) ServeFiles(path string, root http.FileSystem) {
 	}
 
 	fileServer := http.FileServer(root)
-
-	r.GET(path, func(w http.ResponseWriter, req *http.Request, ps Params) {
-		req.URL.Path = ps.ByName("filepath")
-		fileServer.ServeHTTP(w, req)
-	})
+	route := &Route{}
+	route.targetMethod = func(c *Context) {
+		c.Request.URL.Path = c.Params.ByName("filepath")
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	}
+	r.GET(path, route)
 }
 
 func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
@@ -278,11 +286,11 @@ func (r *Router) recv(w http.ResponseWriter, req *http.Request) {
 // If the path was found, it returns the handle function and the path parameter
 // values. Otherwise the third return value indicates whether a redirection to
 // the same path with an extra / without the trailing slash should be performed.
-func (r *Router) Lookup(method, path string) (Handle, Params, bool) {
+func (r *Router) Lookup(method, path string) (*Route, Params, bool) {
 	if root := r.trees[method]; root != nil {
 		return root.getValue(path)
 	}
-	return nil, nil, false
+	return &Route{}, nil, false
 }
 
 func (r *Router) allowed(path, reqMethod string) (allow string) {
@@ -306,8 +314,8 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 				continue
 			}
 
-			handle, _, _ := r.trees[method].getValue(path)
-			if handle != nil {
+			route, _, _ := r.trees[method].getValue(path)
+			if route.targetMethod != nil {
 				// add request method to list of allowed methods
 				if len(allow) == 0 {
 					allow = method
@@ -323,9 +331,9 @@ func (r *Router) allowed(path, reqMethod string) (allow string) {
 	return
 }
 
-func (r *Router) HandleFastHTTP(ctx *fasthttp.RequestCtx){
-     fmt.Fprint(ctx,"hello")
-}
+//func (r *Router) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
+//	fmt.Fprint(ctx, "hello")
+//}
 
 // ServeHTTP makes the router implement the http.Handler interface.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -336,8 +344,24 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 
 	if root := r.trees[req.Method]; root != nil {
-		if handle, ps, tsr := root.getValue(path); handle != nil {
-			handle(w, req, ps)
+
+		path := req.URL.Path
+		fmt.Println(path)
+
+		route, ps, tsr := root.getValue(path)
+
+		if route.targetMethod != nil {
+			fmt.Fprint(w, 111)
+		}
+
+		if route.targetMethod != nil {
+
+			// 这里可以封装上下文
+			context := &Context{w, req, ps}
+			//handle(w, req, ps)
+
+			// 这里应当建立管道，执行中间件最终到达路由
+			route.targetMethod(context)
 			return
 		} else if req.Method != "CONNECT" && path != "/" {
 			code := 301 // Permanent redirect, request with GET method
@@ -402,4 +426,46 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		http.NotFound(w, req)
 	}
+}
+
+func (r *Router) Mount(routes ...*Route) {
+	//
+	for _, route := range routes {
+		r.MountRoute(route)
+	}
+
+}
+
+// 向其中挂载路由
+func (r *Router) MountRoute(route *Route) {
+	var path string
+	var middlewares []MiddlewareHandle
+	if route.prefix == "" {
+		path = path + route.path
+	} else {
+		path = path + route.prefix
+	}
+	// 拼接路径
+	// 挂载中间件
+	for _, v := range route.middleware {
+		middlewares = append(middlewares, v)
+	}
+	route.middleware = middlewares
+
+	if route.method != "" && path != "" {
+		fmt.Println(path)
+		r.Handle(route.method, path, route)
+	}
+
+	// 如果路由有子路由，则将子路由挂载进去，如果没有，
+	if len(route.mount) > 0 {
+		for _, subRoute := range route.mount {
+			r.MountRoute(subRoute)
+		}
+	} else {
+		// 如果没有子路由，则清空掉该临时路径和中间件数组
+		path = ""
+		middlewares = []MiddlewareHandle{}
+	}
+
 }
