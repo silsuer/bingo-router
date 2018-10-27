@@ -18,14 +18,14 @@ type Context struct {
 
 // 路由
 type Route struct {
-	path         string           // 路径
-	targetMethod TargetHandle     // 要执行的方法
-	method       string           // 访问类型 是get post 或者其他
-	alias        string           // 路由的别名，并没有什么卵用的样子.......
-	name         string           // 路由名
-	mount        []*Route         // 子路由
+	path         string             // 路径
+	targetMethod TargetHandle       // 要执行的方法
+	method       string             // 访问类型 是get post 或者其他
+	alias        string             // 路由的别名，并没有什么卵用的样子.......
+	name         string             // 路由名
+	mount        []*Route           // 子路由
 	middleware   []MiddlewareHandle // 挂载的中间件
-	prefix       string           // 路由前缀，该前缀仅对子路由有效
+	prefix       string             // 路由前缀，该前缀仅对子路由有效
 }
 
 // 路由的构建器
@@ -101,6 +101,18 @@ func (r *Route) Request(method string, path string, target TargetHandle) *Route 
 // 路由前缀，该前缀仅会对子路由有效，对当前路由无效
 func (r *Route) Prefix(prefix string) *Route {
 	r.prefix = prefix
+	return r
+}
+
+func (r *Route) Middleware(h MiddlewareHandle) *Route {
+	r.middleware = append(r.middleware, h)
+	return r
+}
+
+func (r *Route) MiddlewareGroup(hg []MiddlewareHandle) *Route {
+	for _, h := range hg {
+		r.Middleware(h)
+	}
 	return r
 }
 
