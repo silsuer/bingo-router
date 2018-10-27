@@ -34,7 +34,7 @@ func countParams(path string) uint8 {
 type nodeType uint8
 
 const (
-	static nodeType = iota // default
+	static   nodeType = iota // default
 	root
 	param
 	catchAll
@@ -47,7 +47,7 @@ type node struct {
 	maxParams uint8
 	indices   string
 	children  []*node
-	route    *Route
+	route     Route
 	priority  uint32
 }
 
@@ -77,7 +77,7 @@ func (n *node) incrementChildPrio(pos int) int {
 
 // addRoute adds a node with the given handle to the path.
 // Not concurrency-safe!
-func (n *node) addRoute(path string, route *Route) {
+func (n *node) addRoute(path string, route Route) {
 	fullPath := path
 	n.priority++
 	numParams := countParams(path)
@@ -108,7 +108,7 @@ func (n *node) addRoute(path string, route *Route) {
 					nType:     static,
 					indices:   n.indices,
 					children:  n.children,
-					route:    n.route,
+					route:     n.route,
 					priority:  n.priority - 1,
 				}
 
@@ -123,7 +123,7 @@ func (n *node) addRoute(path string, route *Route) {
 				// []byte for proper unicode char conversion, see #65
 				n.indices = string([]byte{n.path[i]})
 				n.path = path[:i]
-				n.route = &Route{}
+				n.route = Route{}
 				n.wildChild = false
 			}
 
@@ -143,7 +143,7 @@ func (n *node) addRoute(path string, route *Route) {
 
 					// Check if the wildcard matches
 					if len(path) >= len(n.path) && n.path == path[:len(n.path)] &&
-						// Check for longer wildcard, e.g. :name and :names
+					// Check for longer wildcard, e.g. :name and :names
 						(len(n.path) >= len(path) || path[len(n.path)] == '/') {
 						continue walk
 					} else {
@@ -209,7 +209,7 @@ func (n *node) addRoute(path string, route *Route) {
 	}
 }
 
-func (n *node) insertChild(numParams uint8, path, fullPath string, route *Route) {
+func (n *node) insertChild(numParams uint8, path, fullPath string, route Route) {
 	var offset int // already handled bytes of the path
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -308,7 +308,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, route *Route)
 				path:      path[i:],
 				nType:     catchAll,
 				maxParams: 1,
-				route:    route,
+				route:     route,
 				priority:  1,
 			}
 			n.children = []*node{child}
@@ -327,7 +327,7 @@ func (n *node) insertChild(numParams uint8, path, fullPath string, route *Route)
 // If no handle can be found, a TSR (trailing slash redirect) recommendation is
 // made if a handle exists with an extra (without the) trailing slash for the
 // given path.
-func (n *node) getValue(path string) (route *Route, p Params, tsr bool) {
+func (n *node) getValue(path string) (route Route, p Params, tsr bool) {
 walk: // outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
