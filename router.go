@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"strconv"
+	"github.com/modood/table"
 )
 
 type Handle func(http.ResponseWriter, *http.Request, Params)
@@ -333,7 +334,6 @@ func (r *Router) MountRoute(route *Route) {
 
 	// 设置中间件
 	//setRouteMiddlewares(currentPointer, route)
-
 	if route.method != "" && p != "" {
 		r.Handle(route.method, p, route)
 	}
@@ -379,4 +379,30 @@ func setMiddlewares(current int, route *Route) {
 			}
 		}
 	}
+}
+
+type Output struct {
+	Method     string
+	URI        string
+	Name       string
+	Action     string
+	Middleware string
+}
+
+// 在控制台中打印所有路由
+func (r *Router) PrintRoutes() {
+	var outputs []Output
+	// 遍历所有路由，拼接成table结构体，然后打印输出
+	for m := range r.trees {
+		rr := r.trees[m].route
+		if rr.path == "" {
+			continue
+		}
+
+		// 调用路由的一个方法，传入一个 output数组，如果有
+		outputs = append(outputs, rr.print(outputs)...)
+	}
+
+	//fmt.Println(outputs)
+	table.Output(outputs)
 }

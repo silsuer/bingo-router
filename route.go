@@ -1,20 +1,16 @@
 package bingo_router
 
-import "net/http"
+import (
+	"strings"
+	"runtime"
+	"reflect"
+)
 
 const GET = "GET"
 const POST = "POST"
 const DELETE = "DELETE"
 const PUT = "PUT"
 const PATCH = "PATCH"
-
-// 上下文结构体
-type Context struct {
-	Writer  http.ResponseWriter // 响应
-	Request *http.Request       // 请求
-	Params  Params              //参数
-	//Session Session             // 保存session
-}
 
 // 路由
 type Route struct {
@@ -63,7 +59,7 @@ func (r *Route) Post(path string) *Route {
 }
 
 // 添加路由时需要，设置为put方法
-func (r *Route) Put(path string, target TargetHandle) *Route {
+func (r *Route) Put(path string) *Route {
 	//return r.Request(PUT, path, target)
 	r.path = path
 	r.method = PUT
@@ -71,7 +67,7 @@ func (r *Route) Put(path string, target TargetHandle) *Route {
 }
 
 // 添加路由时需要，设置为patch方法
-func (r *Route) Patch(path string, target TargetHandle) *Route {
+func (r *Route) Patch(path string) *Route {
 	//return r.Request(PATCH, path, target)
 	r.path = path
 	r.method = PATCH
@@ -79,15 +75,33 @@ func (r *Route) Patch(path string, target TargetHandle) *Route {
 }
 
 // 添加路由时需要，设置为delete方法
-func (r *Route) Delete(path string, target TargetHandle) *Route {
+func (r *Route) Delete(path string) *Route {
 	//return r.Request(DELETE, path, target)
 	r.path = path
 	r.method = DELETE
 	return r
 }
 
+// 传入一个控制器，自动构建多个路由
+func (r *Route) Resource(path string, controller IController) *Route {
+	// 在当前路由下挂载子路由
+	r.Mount(func(b *Builder) {
+		b.NewRoute().Get(path).Target(controller.Index)
+		b.NewRoute().Get(path + "/detail/:id").Target(controller.Show)
+		b.NewRoute().Post(path).Target(controller.Store)
+		b.NewRoute().Get(path + "/create").Target(controller.Create)
+		b.NewRoute().Put(path + "/:id").Target(controller.Update)
+		b.NewRoute().Patch(path + "/:id").Target(controller.Update)
+		b.NewRoute().Get(path + "/edit/:id").Target(controller.Edit)
+		b.NewRoute().Delete(path + "/:id").Target(controller.Destroy)
+	})
+	return r
+}
+
 // 这里传入一个回调
 func (r *Route) Target(target TargetHandle) *Route {
+	r.name = r.path + "." + r.method
+
 	return r.Request(r.method, r.path, target)
 }
 
@@ -116,6 +130,14 @@ func (r *Route) MiddlewareGroup(hg []MiddlewareHandle) *Route {
 	return r
 }
 
+func (r *Route) Name(name string) *Route {
+	if r.name != "" {
+		return r
+	}
+	r.name = name
+	return r
+}
+
 // 挂载子路由，这里只是将回调中的路由放入
 func (r *Route) Mount(rr func(b *Builder)) *Route {
 	builder := new(Builder)
@@ -125,6 +147,32 @@ func (r *Route) Mount(rr func(b *Builder)) *Route {
 		r.mount = append(r.mount, route)
 	}
 	return r
+}
+
+func (r *Route) print(arr []Output) []Output {
+	o := Output{}
+	o.Name = r.name
+	o.URI = r.path
+	o.Method = r.method
+	o.Middleware = strings.Join(r.printMiddlewares(), "|")
+	o.Action = runtime.FuncForPC(reflect.ValueOf(r.targetMethod).Pointer()).Name()
+	arr = append(arr, o)
+	if len(r.mount) > 0 {
+		for rr := range r.mount {
+			arr = r.mount[rr].print(arr)
+		}
+	}
+
+	return arr
+}
+
+// 返回所有的中间件名称组合成的数组
+func (r *Route) printMiddlewares() []string {
+	var res []string
+	for m := range r.middleware {
+		res = append(res, runtime.FuncForPC(reflect.ValueOf(r.middleware[m]).Pointer()).Name())
+	}
+	return res
 }
 
 // 每个请求进来都要生成一个管道，根据管道执行中间件最后到达目的路由
