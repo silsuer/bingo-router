@@ -1,8 +1,9 @@
 package bingo_router
 
 import (
-	"net/http"
 	"github.com/json-iterator/go"
+	"mime/multipart"
+	"net/http"
 )
 
 // 上下文结构体
@@ -31,4 +32,32 @@ func (c *Context) ResponseJson(data interface{}) {
 	d, _ := json.Marshal(data)
 	c.Writer.WriteHeader(http.StatusOK)
 	c.Writer.Write([]byte(d))
+}
+
+// 获取get表单的参数
+func (c *Context) Get(key string) string {
+	return c.Request.FormValue(key)
+}
+
+// 获取post表单的参数
+func (c *Context) Post(key string) string {
+	return c.Request.PostFormValue(key)
+}
+
+func (c *Context) File(key string) (multipart.File, *multipart.FileHeader, error) {
+	return c.Request.FormFile(key)
+}
+
+func (c *Context) GetWithDefault(key, def string) string {
+	if c.Request.FormValue(key) == "" {
+		return def
+	}
+	return c.Request.FormValue(key)
+}
+
+func (c *Context) PostWithDefault(key, def string) string {
+	if c.Request.PostFormValue(key) == "" {
+		return def
+	}
+	return c.Request.PostFormValue(key)
 }
